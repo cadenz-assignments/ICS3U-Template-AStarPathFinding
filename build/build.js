@@ -1,93 +1,145 @@
-var ColorHelper = (function () {
-    function ColorHelper() {
-    }
-    ColorHelper.getColorVector = function (c) {
-        return createVector(red(c), green(c), blue(c));
-    };
-    ColorHelper.rainbowColorBase = function () {
-        return [
-            color('red'),
-            color('orange'),
-            color('yellow'),
-            color('green'),
-            color(38, 58, 150),
-            color('indigo'),
-            color('violet')
-        ];
-    };
-    ColorHelper.getColorsArray = function (total, baseColorArray) {
-        var _this = this;
-        if (baseColorArray === void 0) { baseColorArray = null; }
-        if (baseColorArray == null) {
-            baseColorArray = ColorHelper.rainbowColorBase();
-        }
-        var rainbowColors = baseColorArray.map(function (x) { return _this.getColorVector(x); });
-        ;
-        var colours = new Array();
-        for (var i = 0; i < total; i++) {
-            var colorPosition = i / total;
-            var scaledColorPosition = colorPosition * (rainbowColors.length - 1);
-            var colorIndex = Math.floor(scaledColorPosition);
-            var colorPercentage = scaledColorPosition - colorIndex;
-            var nameColor = this.getColorByPercentage(rainbowColors[colorIndex], rainbowColors[colorIndex + 1], colorPercentage);
-            colours.push(color(nameColor.x, nameColor.y, nameColor.z));
-        }
-        return colours;
-    };
-    ColorHelper.getColorByPercentage = function (firstColor, secondColor, percentage) {
-        var firstColorCopy = firstColor.copy();
-        var secondColorCopy = secondColor.copy();
-        var deltaColor = secondColorCopy.sub(firstColorCopy);
-        var scaledDeltaColor = deltaColor.mult(percentage);
-        return firstColorCopy.add(scaledDeltaColor);
-    };
-    return ColorHelper;
-}());
-var PolygonHelper = (function () {
-    function PolygonHelper() {
-    }
-    PolygonHelper.draw = function (numberOfSides, width) {
-        push();
-        var angle = TWO_PI / numberOfSides;
-        var radius = width / 2;
-        beginShape();
-        for (var a = 0; a < TWO_PI; a += angle) {
-            var sx = cos(a) * radius;
-            var sy = sin(a) * radius;
-            vertex(sx, sy);
-        }
-        endShape(CLOSE);
-        pop();
-    };
-    return PolygonHelper;
-}());
-var numberOfShapesControl;
+var gridSize = 20;
+var canvasSize = 300;
+var cellSize = canvasSize / gridSize;
+var grid = new Array();
+var openSet = new Array();
+var closedSet = new Array();
+var path = new Array();
+var startCell;
+var endCell;
 function setup() {
-    console.log("🚀 - Setup initialized - P5 is running");
-    createCanvas(windowWidth, windowHeight);
-    rectMode(CENTER).noFill().frameRate(30);
-    numberOfShapesControl = createSlider(1, 30, 15, 1).position(10, 10).style("width", "100px");
-}
-function windowResized() {
-    resizeCanvas(windowWidth, windowHeight);
+    console.log("Initializing");
+    createCanvas(canvasSize, canvasSize);
+    Helper.setupGrid();
+    Helper.initPath(0, 0, gridSize - 1, gridSize - 1);
 }
 function draw() {
     background(0);
-    translate(width / 2, height / 2);
-    var numberOfShapes = numberOfShapesControl.value();
-    var colours = ColorHelper.getColorsArray(numberOfShapes);
-    var speed = (frameCount / (numberOfShapes * 30)) * 2;
-    for (var i = 0; i < numberOfShapes; i++) {
-        push();
-        var lineWidth = 8;
-        var spin = speed * (numberOfShapes - i);
-        var numberOfSides = 3 + i;
-        var width_1 = 40 * i;
-        strokeWeight(lineWidth);
-        stroke(colours[i]);
-        rotate(spin);
-        PolygonHelper.draw(numberOfSides, width_1);
-        pop();
+    grid.forEach(function (column) { return column.forEach(function (cell) { return cell.show(255); }); });
+    openSet.forEach(function (cell) { return cell.show(color(0, 255, 0)); });
+    closedSet.forEach(function (cell) { return cell.show(color(255, 0, 0)); });
+    path.forEach(function (cell) { return cell.show(color(0, 0, 255)); });
+    if (openSet.length > 0) {
+        var winningIndex_1 = 0;
+        openSet.forEach(function (cell) {
+            if (cell.fCost < openSet[winningIndex_1].fCost) {
+                winningIndex_1 = openSet.indexOf(cell);
+            }
+        });
+        var winningCell_1 = openSet[winningIndex_1];
+        path = [];
+        Helper.retracePath(winningCell_1, path);
+        if (winningCell_1 == endCell) {
+            console.log("We have reached the end");
+            path = [];
+            Helper.retracePath(winningCell_1, path);
+            path.push(endCell);
+            openSet = [];
+            closedSet = [];
+            return;
+        }
+        openSet = openSet.filter(function (cell) { return cell != winningCell_1; });
+        closedSet.push(winningCell_1);
+        var neighbors = Helper.getNeighbors(winningCell_1);
+        neighbors.forEach(function (neighbor) {
+            if (closedSet.indexOf(neighbor) == -1) {
+                var tempG = winningCell_1.gCost + Helper.heuristic(neighbor, winningCell_1);
+                var newG = false;
+                if (openSet.indexOf(neighbor) != -1) {
+                    if (tempG < neighbor.gCost) {
+                        neighbor.gCost = tempG;
+                        newG = true;
+                    }
+                }
+                else {
+                    neighbor.gCost = tempG;
+                    newG = true;
+                    openSet.push(neighbor);
+                }
+                if (newG) {
+                    neighbor.hCost = Helper.heuristic(neighbor, endCell);
+                    neighbor.fCost = neighbor.gCost + neighbor.hCost;
+                    neighbor.parent = winningCell_1;
+                }
+            }
+        });
     }
 }
+var Helper;
+(function (Helper) {
+    function heuristic(cell1, cell2) {
+        return dist(cell1.x, cell1.y, cell2.x, cell2.y);
+    }
+    Helper.heuristic = heuristic;
+    function setupGrid() {
+        for (var i = 0; i < gridSize; i++) {
+            var column = new Array();
+            for (var j = 0; j < gridSize; j++) {
+                column.push(new Cell(i, j));
+            }
+            grid.push(column);
+        }
+    }
+    Helper.setupGrid = setupGrid;
+    function getNeighbors(cell) {
+        var neighbors = new Array();
+        for (var i = -1; i <= 1; i++) {
+            for (var j = -1; j <= 1; j++) {
+                if (i == 0 && j == 0) {
+                    continue;
+                }
+                if (Math.abs(i) + Math.abs(j) > 1) {
+                    continue;
+                }
+                var x = cell.x + i;
+                var y = cell.y + j;
+                if (!isValidPosition(x, y))
+                    continue;
+                neighbors.push(grid[x][y]);
+            }
+        }
+        return neighbors;
+    }
+    Helper.getNeighbors = getNeighbors;
+    function initPath(x1, y1, x2, y2) {
+        if (!isValidPosition(x1, y1) || !isValidPosition(x2, y2)) {
+            console.log("Position given is not valid");
+            return;
+        }
+        startCell = grid[x1][y1];
+        endCell = grid[y2][y2];
+        openSet = [];
+        closedSet = [];
+        openSet.push(startCell);
+    }
+    Helper.initPath = initPath;
+    function isValidPosition(x, y) {
+        return x >= 0 && x < gridSize && y >= 0 && y < gridSize;
+    }
+    Helper.isValidPosition = isValidPosition;
+    function retracePath(baseNode, parents) {
+        if (baseNode.parent == null) {
+            parents.push(baseNode);
+            return;
+        }
+        parents.push(baseNode.parent);
+        retracePath(baseNode.parent, parents);
+    }
+    Helper.retracePath = retracePath;
+})(Helper || (Helper = {}));
+var Cell = (function () {
+    function Cell(x, y) {
+        this.x = x;
+        this.y = y;
+        this.fCost = 0;
+        this.gCost = 0;
+        this.hCost = 0;
+        this.parent = null;
+    }
+    Cell.prototype.show = function (color) {
+        fill(color);
+        rect(this.x * cellSize, this.y * cellSize, cellSize, cellSize);
+    };
+    return Cell;
+}());
 //# sourceMappingURL=build.js.map
