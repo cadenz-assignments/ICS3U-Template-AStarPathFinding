@@ -13,4 +13,4 @@
 3. You should be good to go. Use `npm start` to run the code.
 
 ## Code fragments
-If you are stuck somewhere, feel free to check out the (code fragments)[https://gist.github.com/Caden-Z]
+If you are stuck somewhere, feel free to check out the [code fragments](https://gist.github.com/Caden-Z).
