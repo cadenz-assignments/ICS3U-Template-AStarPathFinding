@@ -11,3 +11,6 @@
 1. Clone this github repository
 2. Once thats done, do `npm install` inside the newly cloned folder.
 3. You should be good to go. Use `npm start` to run the code.
+
+## Code fragments
+If you are stuck somewhere, feel free to check out the (code fragments)[https://gist.github.com/Caden-Z]
